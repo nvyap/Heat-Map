@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<script src="../lib/d3.v3.min.js"></script>
+<style>
+
+body {
+  font: 12px sans-serif;
+  margin-left: 300px;
+  margin-top: 50px
+}
+
+.label {
+  font-weight: bold;
+}
+
+.tile {
+  shape-rendering: crispEdges;
+}
+
+.axis path,
+.axis line {
+  fill: none;
+  stroke: none;
+  shape-rendering: crispEdges;
+}
+
+</style>
+<body>
+  <div>
+    <h2>Vizualizing Wizarding House and Spells</h2>
+  </br>  </br>
+    House:  <div style = "display:inline" id = "Houses"></div>
+  </br>  </br>
+    <div id = "Heatmap"></div>
+  </div>
+</body>
+
+<script>
+
+var margin = {top: 20, right: 90, bottom: 30, left: 70};
+var width = 600;//960 - margin.left - margin.right,
+var height = 500;//500 - margin.top - margin.bottom;
+
+
+var x = d3.time.scale().range([0, width]),
+    y = d3.scale.linear().range([height, 0]),
+    z = d3.scale.linear().range(["white", "steelblue"]);
+
+var color = ['#ffffcc',
+'#ffeda0',
+'#fed976',
+'#feb24c',
+'#fd8d3c',
+'#fc4e2a',
+'#e31a1c',
+'#bd0026',
+'#800026']
+
+var books = []
+var spells = []
+var house_data = []
+var final_data = []
+
+
+d3.csv("heatmap.csv", function(error, buckets) {
+      if (error) throw error;
+
+    buckets.forEach(function(d){
+      var spell = d.SpellType;
+      var House = d.House;
+    if(House){
+       for(var key in d){
+
+    if(key != "House" && key != "SpellType"){
+      var H = key;
+      if(books.indexOf(H)<0){
+            books.push(H);}
+      final_data.push([H,spell,House,+d[key]])
+    }
+  }
+}
+    if(spells.indexOf(spell)<0){
+      spells.push(spell);
+    };
+    if(house_data.indexOf(House)<0){
+      house_data.push(House);
+    };
+
+});
+    spells = spells.sort();
+    var svg1 = d3.select("#Houses").append('select').attr('class','select').on('change',onchange)
+    var options = svg1.selectAll('option').data(house_data).enter().append('option').text(function(d){return d;});
+    onchange();
+});
+
+function onchange(d){
+  document.getElementById("Heatmap").innerHTML = ""
+  House = d3.select('select').property('value')
+  console.log(House)
+  filter_data = []
+  final_data.forEach(function(d){
+    if(d[2] == House){
+      filter_data.push(d);
+    }
+  })
+ var svg = d3.select("#Heatmap").append("svg")
+    .attr("width", width + margin.left + margin.right)
+    .attr("height", height + margin.top + margin.bottom)
+  var x = d3.scale.ordinal().domain(spells).rangePoints([0,400])
+  var y = d3.scale.ordinal().domain(books).rangePoints([0,350])
+  var z = d3.scale.quantile().range(color).domain([d3.min(final_data, function(d) { return d[3]; }), d3.max(filter_data, function(d) { return d[3]; })]);
+  var color_intervals = []
+
+  var min = d3.min(final_data, function(d) { return d[3]; })
+  var max =  d3.max(filter_data, function(d) { return d[3]; })
+  var interval = (max-min)/9;
+  for(var i =0; i<9; i++){
+    color_intervals.push(min+interval*i);
+  }
+  // Display the tiles for each non-zero bucket.
+  //console.log(final_data)
+  svg.selectAll(".tile")
+      .data(filter_data)
+      .enter().append("rect")
+      .attr("class", "tile")
+      .attr("x", function(d) { return 130+x(d[1]); })
+      .attr("y", function(d) { return y(d[0]); })// + yStep
+      .attr("width", 60)//x(xStep) - x(0))
+      .attr("height", 60)// y(0) - y(yStep))
+      .attr('stroke','white')
+      .style("fill", function(d) { return z(d[3]); });
+
+
+  // Add an x-axis with label.
+  xAxis = svg.append("g")
+      .attr("class", "x axis")
+      .attr("transform", "translate(160," + (height-  2*margin.top) + ")")
+      //.attr("transform", "rotate(-90)")
+      //.attr("x",160)
+      //.attr("y",height-4*margin.top)
+      .call(d3.svg.axis().scale(x).orient("bottom"))
+
+  xAxis.selectAll("text")
+      .attr("transform", "rotate(-90)")
+  xAxis.append("text")
+      .attr("class", "label")
+      .attr("x", width-150)
+      .attr("y", -40)
+      .attr("text-anchor", "end")
+      .text("Spell");
+
+  // Add a y-axis with label.
+  svg.append("g")
+      .attr("class", "y axis")
+      .attr("transform", "translate(120," +30 + ")")
+      .call(d3.svg.axis().scale(y).orient("left"))
+      .append("text")
+      .attr("class", "label")
+      .attr("x",30)
+      .attr("y", 0)
+      .attr("dy", ".71em")
+      .attr("text-anchor", "end")
+      .attr("transform", "rotate(-90)")
+      .text("Book");
+
+  var legend = svg.selectAll(".legend")
+      .data(color)
+    .enter().append("g")
+      .attr("class", "legend")
+      .attr("transform", function(d, i) { return "translate(" + (width + 40) + "," + (100 + i * 20) + ")"; });
+
+  legend.append("rect")
+      .attr("width", 20)
+      .attr("height", 20)
+      .data(color)
+      .style("stroke","black")
+      .style("fill", function(d) { return d; });
+
+  legend.append("text")
+      .attr("x", 40)
+      .attr("y", 10)
+      .attr("dy", ".35em")
+      .data(color_intervals)
+      .text(function(d,i) { return Math.round(d); }); //console.log(percentages[i]);
+
+  svg.append("text")
+      .attr("class", "label")
+      .attr("x", width+ 40)
+      .attr("y", 80)
+      .attr("dy", ".35em")
+      .text("#Spells");
+
+}
+</script>
